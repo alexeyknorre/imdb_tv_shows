@@ -2,8 +2,6 @@
 title: "What makes a good TV show? Predicting average ratings and seasonal change"
 author:
 - Alex Knorre
-- Yi Liu
-- Nan Qin
 date: 'May 1, 2022'
 output:
   html_document:
@@ -87,7 +85,7 @@ In this paper we analyze the ratings of 10,465 TV shows and attempt to, first, l
 
 To do that, we use the publicly available data from the Internet Movie DataBase (IMDB), a major website dedicated to the movies and TV shows. Our datasets consist of 10,465 shows, 21,908 seasons, and 300,306 episodes. Show-level IMDB-provided variables have information about the average length of the episode, the starting year of the show, the average show rating, popularity, and genre. We enrich these with data on the number of seasons and episodes per each show.
 
-Additionally, we aggregate the ratings at the seasonal levels, as each episode has its own rating. Thus, each show gets a vector of average season-level ratings with the length $s$, where $s$ is the number of seasons. We subset our data to shows which have at least 2 seasons (n=3,741), and for each show we estimate a simple OLS model: $SeasonMean_{si}=b_0+b_1 SeasonNumber_{si}$, where left-hand side is the average rating of the season $s$ of the show $i$, and right-hand side contains the index of the season. In each of the 3,741 estimated OLS models, $b_1$ is the linear trend that shows whether the average seasonal rating goes up and the show get better each season ($b_1 > 0$), goes down ($b_1 > 0$), or stays approximately the same ($b_1$ close to 0). In other words, we find a slope of each show.
+Additionally, we aggregate the ratings at the seasonal levels, as each episode has its own rating. Thus, each show gets a vector of average season-level ratings with the length $s$, where $s$ is the number of seasons. We subset our data to shows which have at least 2 seasons (n=4,233), and for each show we estimate a simple OLS model: $SeasonMean_{si}=b_0+b_1 SeasonNumber_{si}$, where left-hand side is the average rating of the season $s$ of the show $i$, and right-hand side contains the index of the season. In each of the 4,233 estimated OLS models, $b_1$ is the linear trend that shows whether the average seasonal rating goes up and the show get better each season ($b_1 > 0$), goes down ($b_1 > 0$), or stays approximately the same ($b_1$ close to 0). In other words, we find a slope of each show.
 
 Then, we use OLS and XGBoost to predict the average rating and slope of shows. We find that the average rating is easier to predict, and genres provide important information for this. With the available data, however, slopes are next to impossible to meaningfully predict. We think that enriching the data with budget, production company, and cast/crew information might help making the prediction better.
 
@@ -142,7 +140,7 @@ kbl(sst, digits = 3) %>%
 
 ## Seasonal change
 
-For each show with at least , we aggregate the seasonal means and estimate a linear regression. Its slope shows the average change of the seasonal-averaged ratings with each new season (as with Game of Thrones and Breaking Bad bottom graphs, where the blue line is the linear fit). We use this average slope to approximate the seasonal change for the shows.
+For each show with at least 2 seasons, we aggregate the seasonal means and estimate a linear regression. Its slope shows the average change of the seasonal-averaged ratings with each new season (as with Game of Thrones and Breaking Bad bottom graphs, where the blue line is the linear fit). We use this average slope to approximate the seasonal change for the shows.
 
 The plot below shows the distribution of the slopes over the popularity.
 
@@ -204,7 +202,7 @@ stargazer::stargazer(estimated_ols,type = "html",dep.var.labels = c("Average rat
 ```
 
 
-# Building and evaluating a prediction models
+# Building and evaluating prediction models
 
 Linear regression gives easily interpretable results, but still requires assumption for reasonable estimates. To find out whether assumption-free prediction models can be better at predicting the ratings and slopes, we estimate four models: OLS with ratings, OLS with slopes, XGBoost with ratings and XGBoost with slopes. 
 

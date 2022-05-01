@@ -3,13 +3,13 @@ library(plotly)
 library(data.table)
 library(shinythemes)
 
-#episodes <- readRDS("tv_shows_analysis/data/episodes.rds")[order(numVotes,decreasing = T,seasonNumber,episodeNumber)]
-#shows_slopes <- readRDS("tv_shows_analysis/data/slopes.rds")
+#episodes <- readRDS("data/episodes.rds")[order(numVotes,decreasing = T,seasonNumber,episodeNumber)]
+#shows_slopes <- readRDS("data/slopes.rds")
 episodes <- readRDS("episodes.rds")[order(numVotes,decreasing = T,seasonNumber,episodeNumber)]
 shows_slopes <- readRDS("slopes.rds")
 
 ui <- fluidPage(
-  navbarPage("Evidence Based TV Shows Viewing", theme = shinytheme("lumen"),
+  navbarPage("Evidence Based TV Show Viewing", theme = shinytheme("lumen"),
              tabPanel("Seasons and episodes", fluid = TRUE,
                 selectizeInput(
                   inputId = "titles", 
@@ -18,7 +18,7 @@ ui <- fluidPage(
                   selected = "BoJack Horseman (2014)",
                   multiple = F,
                   options = list(
-                    placeholder = "This is a placeholder",
+                    placeholder = "TV Show title",
                     maxItems = 1)
                 ),
                 plotlyOutput(outputId = "p")),
@@ -32,7 +32,10 @@ ui <- fluidPage(
                       plotlyOutput(outputId = "p2")),
              tabPanel("About",fluidRow(
                       h4(p("Project")),
-                      h5(p("This Shiny app uses the data from IMDB to look into the ratings of TV shows.")),
+                      h5(p("This Shiny app uses the data from IMDB to look into the ratings of TV shows."),
+                         p(a("Read the report", href = 'https://htmlpreview.github.io/?https://github.com/alexeyknorre/imdb_tv_shows/blob/main/code/report.html')),
+                         p(a("Source code on Github", href = 'https://github.com/alexeyknorre/imdb_tv_shows'))
+                         ),
                       h4(p("Author")),
                       h5(p(a("Alex Knorre", href = 'https://alexknorre.com/')
                            )
@@ -109,6 +112,6 @@ server <- function(input, output, ...) {
 
 
 shinyApp(ui, server)
-#setwd("tv_shows_analysis/code/shiny")
+#setwd("code/shiny")
 #rsconnect::deployApp()
 

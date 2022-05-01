@@ -5,7 +5,7 @@ account: knorre
 server: shinyapps.io
 hostUrl: https://api.shinyapps.io/v1
 appId: 6206088
-bundleId: 5855668
+bundleId: 5857796
 url: https://knorre.shinyapps.io/shiny/
-when: 1651352345.04161
-lastSyncTime: 1651352345.04162
+when: 1651440328.849
+lastSyncTime: 1651440328.84902
