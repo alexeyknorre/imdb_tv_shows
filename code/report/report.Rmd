@@ -1,0 +1,227 @@
+---
+title: "What makes a good TV show? Predicting average ratings and seasonal change"
+author:
+- Alex Knorre
+date: 'May 1, 2022'
+output:
+  html_document:
+    code_folding: show
+    highlight: haddock
+    theme: lumen
+urlcolor: blue  
+---
+
+```{r setup, include=FALSE}
+set.seed(1)
+knitr::opts_chunk$set(echo = FALSE, warning = F, message = F)
+library(data.table)
+library(ggplot2)
+library(scales)
+library(ggrepel)
+library(kableExtra)
+shows <- readRDS("../data/shows.rds")
+seasons <- readRDS("../data/seasons.rds")
+episodes <- readRDS("../data/episodes.rds")
+slopes <- readRDS("../data/slopes.rds")
+estimated_ols <- readRDS("../results/estimated_ols.rds")
+prediction_results <- readRDS("../results/prediction_results.rds")
+xgboost_features <- readRDS("../results/xgboost_features.rds")
+
+draw_seasonal_dynamics <- function(tv_title){
+  #tv_show_id = "tt8392006" # Apharan
+  tv_show <- episodes[title == tv_title]
+  tv_show_means <- seasons[show_id == tv_show$show_id[1]]
+
+  graph_y_lower <- min(tv_show$averageRating) - 0.2
+  graph_y_upper <- max(tv_show$averageRating) + 0.2
+  
+  ### Plot the dynamics of ratings
+  library(ggplot2)
+  library(cowplot)
+  
+  title_gg <- ggdraw() +
+    draw_label(tv_title)
+  
+  p1<-ggplot(tv_show, aes(x=id-0.5, y = averageRating, color = as.factor(seasonNumber))) +
+    geom_line() +
+    geom_point(aes(size = log(numVotes)/10)) +
+    theme_minimal() +
+    theme(legend.position = "none",
+          panel.grid.minor.y = element_blank(),
+          panel.grid.major.x = element_blank()) +
+    scale_x_continuous(breaks = 1:max(tv_show$seasonNumber), limits = c(NA,max(tv_show$seasonNumber)+0.5))+
+    scale_y_continuous(limits = c(graph_y_lower,graph_y_upper))+
+    labs(x="",y="",title="Average ratings by episode",
+         caption = "Point size is number of votes. Colors show seasons.") 
+  #scale_y_continuous(expand = c(0, 0), limits = c(0, NA))
+  
+  
+  p2<-ggplot(tv_show_means, aes(x=seasonNumber+0.5, y = season_mean)) +
+    geom_line() +
+    geom_point() +
+    geom_errorbar(aes(ymin=season_mean-season_sd, ymax=season_mean+season_sd), colour="black", width=.1) +
+    theme_minimal() +
+    geom_smooth(method="lm",se=F)+
+    theme(panel.grid.minor.y = element_blank(),
+          panel.grid.major.x = element_blank())+
+    scale_x_continuous(limits = c(1,max(tv_show$seasonNumber)+1),breaks = 1:max(tv_show$seasonNumber)+0.5,
+                       labels = 1:max(tv_show$seasonNumber))+
+    scale_y_continuous(limits = c(graph_y_lower,graph_y_upper))+
+    labs(x="Season #",y="",title = "Average ratings by season",
+         caption = "Confidence interval is 1 SD away from the average. Blue line is linear fit.")#+
+  #geom_abline(intercept = 9.02,slope = -0.19)
+  
+  
+  plot_grid(title_gg, p1, p2, labels = c(),ncol = 1,rel_heights = c(0.2, 1, 1), align = "v")
+  #return(p1)
+}
+```
+
+# Introduction
+
+For many people, watching a TV show after a busy day is a crucial way to relax and recharge. However, not all shows are equally good. Moreover, some shows are enjoyable in the beginning over the first several seasons but end up with poor scenario writing and disappointed fans later. 
+
+In this paper we analyze the ratings of 10,465 TV shows and attempt to, first, look into the trajectories of ratings over the seasons, second, predict what makes a good TV show, third, predict what makes a TV show to be consistently good or bad. Contrary to many ML exercises to predict the popularity, budget, or rating of a movie, this work is novel: it is looking beyond the average rating per show. We look at the change of shows' ratings per each new season. This enables us to see whether a show gets better or worse each new season. Take a look at the [interactive visualization of our data in Shiny](http://knorre.shinyapps.io/shiny/)!
+
+To do that, we use the publicly available data from the Internet Movie DataBase (IMDB), a major website dedicated to the movies and TV shows. Our datasets consist of 10,465 shows, 21,908 seasons, and 300,306 episodes. Show-level IMDB-provided variables have information about the average length of the episode, the starting year of the show, the average show rating, popularity, and genre. We enrich these with data on the number of seasons and episodes per each show.
+
+Additionally, we aggregate the ratings at the seasonal levels, as each episode has its own rating. Thus, each show gets a vector of average season-level ratings with the length $s$, where $s$ is the number of seasons. We subset our data to shows which have at least 2 seasons (n=4,233), and for each show we estimate a simple OLS model: $SeasonMean_{si}=b_0+b_1 SeasonNumber_{si}$, where left-hand side is the average rating of the season $s$ of the show $i$, and right-hand side contains the index of the season. In each of the 4,233 estimated OLS models, $b_1$ is the linear trend that shows whether the average seasonal rating goes up and the show get better each season ($b_1 > 0$), goes down ($b_1 > 0$), or stays approximately the same ($b_1$ close to 0). In other words, we find a slope of each show.
+
+Then, we use OLS and XGBoost to predict the average rating and slope of shows. We find that the average rating is easier to predict, and genres provide important information for this. With the available data, however, slopes are next to impossible to meaningfully predict. We think that enriching the data with budget, production company, and cast/crew information might help making the prediction better.
+
+In the following chapters, we describe what we did in detail and write about the importance of seasonal dimension of TV shows, the data we use, the modeling approach, and the results of the modeling. The code and pre-processed data as well as Shiny application source code are available in [the Github repository](https://github.com/alexeyknorre/imdb_tv_shows).
+
+# Seasons are building blocks of TV shows
+
+The most popular TV show in the history of human civilization is the "Game of Thrones". It has been produced by HBO company on the basis the best-selling novels of J.R.R.Martin, a writer who created a refreshingly brutal and honest epic fantasy world of medieval knights, dragons, murders, magic, and sin. The TV show was a huge success, and lasted for 8 seasons. However, the last season was disappointing, as the plot writing weakened, and even the production has dropped the bar of quality: for example, in the episode 4 of the season 8 one of the main characters had a Starbucks coffee cup on her table. Generally, the last season was way worse than everything before. Many fans (one of the authors of this paper included) were sorry that they even started watching it. 
+
+The data we are using corroborates this anecdote, as shown by the plots below. The top panel of the plot shows the ratings per each episode; one can see that the last season is the worst one, and the episode 4 is one of the two worst episodes in the history of the series. The bottom panel shows the seasonal means; one can see that the linear trend is decreasing because of the very low quality of the last season.
+
+```{r}
+draw_seasonal_dynamics("Game of Thrones (2011)")
+```
+
+Such a pattern is important, because it tells whether the show is getting worse, another important piece of information to decide what show to watch. People invest a significant amount of time in watching TV series, and to make the optimal decision to pick a title, they should not only know whether the show is generally good or bad (as approximated by the average TV series rating) but also whether it is getting better or worse each season. However, some shows are only getting better each season. The second most voted show in the history (and IMDB data) is "Breaking Bad", a TV series about a depressed school chemistry teacher who becomes an illegal drug dealer. The show had 5 seasons and was consistently good up until it ended. The plots below show the same. A curious reader can explore similar graphs for any show themselves in [the interactive Shiny application](http://knorre.shinyapps.io/shiny/).
+
+```{r}
+draw_seasonal_dynamics("Breaking Bad (2008)")
+```
+
+ An interesting question, however, is what drives a TV show to be consistently better or worse each new season? We attempt to tackle this question, as well as the question of the TV series average quality itself. In the next section we describe the data we use.
+
+# Data
+
+We access [the public data provided by IMDB](https://www.imdb.com/interfaces/). The data consists of several tables which contain title information (includes all the movies, TV series, and episodes), rating information, and episode information. We subset the data on the TV series and merge it with relevant episodes using the common TV series identifier. We end up with information on the starting year, number of IMDB votes, average TV series rating, an episode's usual length in minutes, and a vector of genres. We filter out all the shows which have missing information on the average rating for at least one episode, and end up with information on 300,306 episodes, which can be aggregated to 21,908 unique seasons for each show, and to 10,465 unique shows. Using the information on seasons and episodes, we also create the variables with the number of seasons and episodes for each TV show. The summary table below shows the descriptive statistics for the dataset with shows.
+
+```{r}
+library(vtable)
+shows_sum <- shows[,.(n_of_seasons,n_of_episodes,total_episodes,
+                   total_length,runtimeMinutes,
+                   averageRating,numVotes,startYear,genres)
+                   ][,startYear := as.numeric(startYear)]
+
+shows_sum <- fastDummies::dummy_cols(shows_sum, select_columns = "genres",split = ",",remove_selected_columns = T,remove_first_dummy = F)
+
+sst <- st(shows_sum,
+          out = "return",digits = 3)
+
+sst[grepl("genres",sst$Variable),c(4:8)] <- ""
+sst[grepl("genres",sst$Variable),1:3] <- sst[grepl("genres",sst$Variable),1:3][order(sst[grepl("genres",sst$Variable),1:3]$Mean,decreasing = T),]
+
+sst[1:8,c("Variable")] <- c("# of seasons","# of episodes per season",
+                            "Total # of episodes","Total length (minutes",
+                            "Episode length (minutes)",
+                            "Average show rating (IMDB)",
+                            "# of votes","Starting year")
+
+kbl(sst, digits = 3) %>% 
+  kable_classic(full_width = F)
+```
+
+## Seasonal change
+
+For each show with at least 2 seasons, we aggregate the seasonal means and estimate a linear regression. Its slope shows the average change of the seasonal-averaged ratings with each new season (as with Game of Thrones and Breaking Bad bottom graphs, where the blue line is the linear fit). We use this average slope to approximate the seasonal change for the shows.
+
+The plot below shows the distribution of the slopes over the popularity.
+
+```{r}
+ggplot(data=slopes, aes(x=numVotes, y = coef,
+                       label = ifelse(abs(slopes$coef) > 0.1,title,NA)))+
+  geom_point(alpha = 0.1)+
+  scale_y_continuous(limits = c(-4,4)) +
+  #geom_label_repel(size = 2) +
+  theme_minimal()+
+  theme(legend.position = "none",
+          panel.grid.minor.y = element_blank()) +
+  scale_x_log10(breaks = breaks_log(),
+   labels = label_comma())+
+  labs(x="Popularity (log # of IMDB votes)",y="Slope (seasonal change)")
+```
+
+Let us zoom in to the most popular shows. The plot below shows that one of the most nicely developing shows was Fleabag (2016), and one of the worst -- House of Cards (2013). 
+
+```{r}
+ggplot(data=slopes[slopes$numVotes > 100000,],
+       aes(x=numVotes, y = coef,
+           label = title))+
+  geom_point(alpha = 0.1)+
+  scale_y_continuous(limits = c(-1,1)) +
+  geom_label_repel(size = 4) +
+  theme_minimal()+
+  theme(legend.position = "none",
+          panel.grid.minor.y = element_blank()) +
+  scale_x_log10(breaks = breaks_log(),
+   labels = label_comma())+
+  labs(x="Popularity (log # of IMDB votes)",y="Slope (seasonal change)")
+```
+
+Let's take a look at the dynamics of these polar examples below. One can see that the number of seasons might be strong predictor of the slope: it's easier to have a larger slope when there are only two seasons.
+
+```{r}
+plot_grid(draw_seasonal_dynamics("Fleabag (2016)"),
+          draw_seasonal_dynamics("House of Cards (2013)"),ncol = 2)
+```
+
+# Explaining ratings and seasonal slopes
+
+We try to explain what drives both the average rating of the shows and the seasonal change. We estimate a set of four OLS regressions: (1) OLS of average show rating for all shows, (2) OLS of average show rating for top 5% most popular shows,  (3) OLS of seasonal change slope for all shows, (4) OLS of seasonal change slope for top 5% most popular show. The results are below.
+
+## Predictors of ratings
+
+Generally, the most positively appraised shows are associated with having more seasons and more popularity (meaning more people voted on IMDB website). Interestingly, older TV series have higher ratings, which can be due to censoring (no one would vote or even watch bad shows which are 60 years old, but watchers of modern bad shows are more likely to leave their vote). Comedy, drama, history, sports, and documentary series usually have higher ratings.
+
+Now let's look at the estimates for the top 5% shows. The number of seasons does not matter anymore, but more successful shows usually have less but longer episodes per each season. Among these, animation genre has consistently higher ratings than others.
+
+## Predictors of seasonal change
+
+What explains of the series is getting better or worse each season? Generally, it is harder to predict, and even R-squared for the change models is almost near zero. We have suggestive but weak evidence that romances get worse more frequently, and mystery gets somewhat better each season. If we only look at the popular shows, the effects change: now crime and especially sci-fi shows get worse. However, the number of predictors would likely result in false positive statistically significant findings here. Main takeaway here is probably that the available information does not give much useful signal. Also, the post-estimation diagnostics we did shows that the linear fit is not satisfactory, as the residual plots could show.
+
+```{r, results = 'asis'}
+stargazer::stargazer(estimated_ols,type = "html",dep.var.labels = c("Average rating","Seasonal change"),
+                     column.labels = c("All shows","Top 5%","All shows","Top 5%"))
+```
+
+
+# Building and evaluating prediction models
+
+Linear regression gives easily interpretable results, but still requires assumption for reasonable estimates. To find out whether assumption-free prediction models can be better at predicting the ratings and slopes, we estimate four models: OLS with ratings, OLS with slopes, XGBoost with ratings and XGBoost with slopes. 
+
+We split our data into 80/20 training and validation sets. For OLS, we estimate the model using the specification from the previous regression table, and then predict using the validation set. For XGBoost, we first use the default parameters, and then tune the hyperparameters. For all models, we report the validation root mean squared error below. 
+
+```{r}
+kbl(prediction_results,digits = 2,col.names = c("RMSE","OLS","XGBoost (default)","XGBoost (tuned)")) %>% 
+  kable_classic(full_width = F)
+```
+
+What perplexed us the most, the tuning actually worsened the performance of XGBoost model. Interestingly, both OLS and XGBoost predict the average show rating somewhat okay, with the margin of error of approximately 1 (0.97 for OLS and 0.89 for XGBoost) on the scale of 1 to 10. Extreme gradient boosting performs better than OLS. 
+
+However, the prediction of slope is inherently more difficult task for both. XGBoost does not show any improvement compared to OLS, as they both essentially predict noise. RMSE for the slope is 0.46, with the interquartile range of the slope of -0.13 to 0.15 and the mean of 0. This means that with the available data it is impossible to meaningfully predict whether TV series will get better or worse over time.
+
+
+
+
+
+
+
+
+
