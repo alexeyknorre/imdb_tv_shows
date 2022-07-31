@@ -1,5 +1,7 @@
 raw_data/
 x
+.DS_Store
+
 .Rproj.user
 .Rhistory
 .RData
