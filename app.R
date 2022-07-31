@@ -1,6 +1,7 @@
 library(shiny)
 library(plotly)
 library(data.table)
+library(stringr)
 library(shinythemes)
 library(shinyWidgets)
 
@@ -98,7 +99,7 @@ server <- function(input, output, ...) {
     shows_slopes <- shows_slopes[startYear > input$years_start[1]-1 & 
                                    startYear < input$years_start[2]+1]
     
-    shows_slopes <- shows_slopes[stringr::str_detect(genres, paste0(input$genres,collapse = "|"))]
+    shows_slopes <- shows_slopes[str_detect(genres, paste0(input$genres,collapse = "|"))]
     
     graph_y_lower <- min(min(shows_slopes$coef),-0.5)
     
