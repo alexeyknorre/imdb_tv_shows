@@ -1,0 +1,11 @@
+name: shiny
+title:
+username:
+account: knorre
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 6206088
+bundleId: 6147291
+url: https://knorre.shinyapps.io/shiny/
+when: 1659133008.85856
+lastSyncTime: 1659133008.85861
