@@ -22,7 +22,7 @@ ui <- fluidPage(
                         label = "Select a show (delete and start typing below). Also, check out Explorer section in the menu above!", 
                         choices = titles_unique, 
                         selected = "Game of Thrones (2011)",
-                        multiple = F, width = "auto",
+                        multiple = F, width = "400px",
                         options = list(
                           placeholder = "Start typing show title here",
                           maxItems = 1)
