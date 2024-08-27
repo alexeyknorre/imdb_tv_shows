@@ -116,7 +116,7 @@ tv_episodes <- tv_episodes[show_id %in% tv_shows_full$show_id]
 
 # Save episode-level data
 saveRDS(tv_episodes,"data/episodes.rds",compress = "xz")
-saveRDS(tv_episodes,"shiny/episodes.rds",compress = "xz")
+#saveRDS(tv_episodes,"shiny/episodes.rds",compress = "xz")
 
 # Save show-level data
 #saveRDS(tv_shows_full,"data/shows.rds",compress = "xz")
@@ -153,7 +153,7 @@ shows_slopes <- shows_slopes[,genres := gsub("\\N","",genres,fixed = T)]
 
 
 saveRDS(shows_slopes,"data/slopes.rds",compress = "xz")
-saveRDS(shows_slopes,"shiny/slopes.rds",compress = "xz")
+#saveRDS(shows_slopes,"data/slopes.rds",compress = "xz")
 
 
 
