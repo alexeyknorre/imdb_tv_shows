@@ -13,7 +13,7 @@ titles_unique <- unique(episodes$title)
 
 
 ui <- fluidPage(
-  tags$head(includeHTML("google-analytics.html")),
+  tags$head(includeHTML("google_analytics.html")),
   navbarPage("TV Shows",collapsible = T,
              theme = shinytheme("lumen"),
              id = "navbarID",
