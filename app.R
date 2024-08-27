@@ -82,6 +82,12 @@ ui <- fluidPage(
 
 server <- function(input, output, ...) {
   
+  autoInvalidate <- reactiveTimer(50000)
+  observe({
+    autoInvalidate()
+    cat("keep-alive")
+  })
+  
   
   output$p2 <- renderPlotly({
     
